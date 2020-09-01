@@ -15,6 +15,8 @@ from core.config import cfg
 from PIL import Image
 import cv2
 import numpy as np
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
@@ -157,7 +159,8 @@ def main(_argv):
         class_names = utils.read_class_names(cfg.YOLO.CLASSES)
 
         # by default allow all classes in .names file
-        allowed_classes = list(class_names.values())
+        #allowed_classes = list(class_names.values())
+        allowed_classes = ['car', 'truck', 'motorbike', 'bus']
         
         # custom allowed classes (uncomment line below to customize tracker for only people)
         #allowed_classes = ['person']

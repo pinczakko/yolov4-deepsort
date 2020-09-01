@@ -1,0 +1,5 @@
+*.pyc
+input/
+outputs/yolo_test1*
+checkpoints/
+data/yolov4.weights
