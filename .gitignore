@@ -4,3 +4,4 @@ input/
 outputs/yolo_test1*
 checkpoints/
 data/yolov4.weights
+data/yolov4-tiny.weights
