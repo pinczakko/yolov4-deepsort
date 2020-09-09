@@ -57,6 +57,14 @@ def init_deepsort_params():
     tracker = Tracker(metric)
     return encoder, tracker
     
+def load_obj_detector_cfg():
+    config = ConfigProto()
+    config.gpu_options.allow_growth = True
+    session = InteractiveSession(config=config)
+    STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
+    input_size = FLAGS.size
+    video_path = FLAGS.video
+    return input_size, video_path
 
 def main(_argv):
     # Definition of the parameters
@@ -66,12 +74,7 @@ def main(_argv):
     encoder, tracker = init_deepsort_params()
 
     # load configuration for object detector
-    config = ConfigProto()
-    config.gpu_options.allow_growth = True
-    session = InteractiveSession(config=config)
-    STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
-    input_size = FLAGS.size
-    video_path = FLAGS.video
+    input_size, video_path = load_obj_detector_cfg()
 
     # load tflite model if flag is set
     if FLAGS.framework == 'tflite':
