@@ -42,19 +42,26 @@ flags.DEFINE_boolean('dont_show', False, 'dont show video output')
 flags.DEFINE_boolean('info', False, 'show detailed info of tracked objects')
 flags.DEFINE_boolean('count', False, 'count objects being tracked on screen')
 
-def main(_argv):
+def init_deepsort_params():
     # Definition of the parameters
     max_cosine_distance = 0.4
     nn_budget = None
-    nms_max_overlap = 1.0
-    
-    # initialize deep sort
+
     model_filename = 'model_data/mars-small128.pb'
     encoder = gdet.create_box_encoder(model_filename, batch_size=1)
     # calculate cosine distance metric
     metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
     # initialize tracker
     tracker = Tracker(metric)
+    return encoder, tracker
+    
+
+def main(_argv):
+    # Definition of the parameters
+    nms_max_overlap = 1.0
+    
+    # initialize deep sort parameters
+    encoder, tracker = init_deepsort_params()
 
     # load configuration for object detector
     config = ConfigProto()

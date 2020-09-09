@@ -1,4 +1,5 @@
 *.pyc
+*.swp
 input/
 outputs/yolo_test1*
 checkpoints/
