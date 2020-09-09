@@ -66,6 +66,23 @@ def load_obj_detector_cfg():
     video_path = FLAGS.video
     return input_size, video_path
 
+def init_video_out(vid):
+    # by default VideoCapture returns float instead of int
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(vid.get(cv2.CAP_PROP_FPS))
+    codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
+    out = cv2.VideoWriter(FLAGS.output, codec, fps, (width, height))
+    return out
+
+def print_fps(start_time_ns, end_time_ns):
+    elapsed_ns = (end_time_ns - start_time_ns)
+    if elapsed_ns == 0:
+        # prevent division by zero
+        elapsed_ns = 1
+    fps = 1.0 * (10**9) / elapsed_ns
+    print("FPS: %.2f" % fps)
+
 def main(_argv):
     # Definition of the parameters
     nms_max_overlap = 1.0
@@ -99,12 +116,7 @@ def main(_argv):
 
     # get video ready to save locally if flag is set
     if FLAGS.output:
-        # by default VideoCapture returns float instead of int
-        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = int(vid.get(cv2.CAP_PROP_FPS))
-        codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
-        out = cv2.VideoWriter(FLAGS.output, codec, fps, (width, height))
+        out = init_video_out(vid)
 
     # while video is running
     while True:
@@ -233,9 +245,8 @@ def main(_argv):
             if FLAGS.info:
                 print("Tracker ID: {}, Class: {},  BBox Coords (xmin, ymin, xmax, ymax): {}".format(str(track.track_id), class_name, (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))))
 
-        # calculate frames per second of running detections
-        fps = 1.0 * (10**9) / (time.time_ns() - start_time_ns)
-        print("FPS: %.2f" % fps)
+        # calculate and print frames per second of running detections
+        print_fps(start_time_ns, time.time_ns())
         result = np.asarray(frame)
         result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         
