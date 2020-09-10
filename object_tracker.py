@@ -44,6 +44,32 @@ flags.DEFINE_boolean('dont_show', False, 'dont show video output')
 flags.DEFINE_boolean('info', False, 'show detailed info of tracked objects')
 flags.DEFINE_boolean('count', False, 'count objects being tracked on screen')
 
+class tf_lite_ngine:
+    def __init__(self):
+        # Initialize tf lite parameters
+        self.interpreter = tf.lite.Interpreter(model_path=FLAGS.weights)
+        self.interpreter.allocate_tensors()
+        self.input_details = self.interpreter.get_input_details()
+        self.output_details = self.interpreter.get_output_details()
+        print(self.input_details)
+        print(self.output_details)
+    
+    def detect(self, image_data):
+        self.interpreter.set_tensor(self.input_details[0]['index'], image_data)
+        self.interpreter.invoke()
+        pred = [self.interpreter.get_tensor(self.output_details[i]['index']) 
+                for i in range(len(self.output_details))]
+        # run detections using yolov3 if flag is set
+        if FLAGS.model == 'yolov3' and FLAGS.tiny == True:
+            boxes, pred_conf = filter_boxes(pred[1], pred[0], score_threshold=0.25,
+                                            input_shape=tf.constant([input_size, input_size]))
+        else:
+            boxes, pred_conf = filter_boxes(pred[0], pred[1], score_threshold=0.25,
+                                            input_shape=tf.constant([input_size, input_size]))
+        return boxes, pred_conf
+
+
+
 def init_deepsort_params():
     # Definition of the parameters
     max_cosine_distance = 0.4
@@ -95,12 +121,13 @@ def main(_argv):
 
     # load tflite model if flag is set
     if FLAGS.framework == 'tflite':
-        interpreter = tf.lite.Interpreter(model_path=FLAGS.weights)
-        interpreter.allocate_tensors()
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        print(input_details)
-        print(output_details)
+        #interpreter = tf.lite.Interpreter(model_path=FLAGS.weights)
+        #interpreter.allocate_tensors()
+        #input_details = interpreter.get_input_details()
+        #output_details = interpreter.get_output_details()
+        #print(input_details)
+        #print(output_details)
+        tfl = tf_lite_ngine()
     # otherwise load standard tensorflow saved model
     else:
         saved_model_loaded = tf.saved_model.load(FLAGS.weights, tags=[tag_constants.SERVING])
@@ -136,16 +163,18 @@ def main(_argv):
 
         # run detections on tflite if flag is set
         if FLAGS.framework == 'tflite':
-            interpreter.set_tensor(input_details[0]['index'], image_data)
-            interpreter.invoke()
-            pred = [interpreter.get_tensor(output_details[i]['index']) for i in range(len(output_details))]
-            # run detections using yolov3 if flag is set
-            if FLAGS.model == 'yolov3' and FLAGS.tiny == True:
-                boxes, pred_conf = filter_boxes(pred[1], pred[0], score_threshold=0.25,
-                                                input_shape=tf.constant([input_size, input_size]))
-            else:
-                boxes, pred_conf = filter_boxes(pred[0], pred[1], score_threshold=0.25,
-                                                input_shape=tf.constant([input_size, input_size]))
+            #tfl.interpreter.set_tensor(tfl.input_details[0]['index'], image_data)
+            #tfl.interpreter.invoke()
+            #pred = [tfl.interpreter.get_tensor(tfl.output_details[i]['index']) 
+            #        for i in range(len(tfl.output_details))]
+            ## run detections using yolov3 if flag is set
+            #if FLAGS.model == 'yolov3' and FLAGS.tiny == True:
+            #    boxes, pred_conf = filter_boxes(pred[1], pred[0], score_threshold=0.25,
+            #                                    input_shape=tf.constant([input_size, input_size]))
+            #else:
+            #    boxes, pred_conf = filter_boxes(pred[0], pred[1], score_threshold=0.25,
+            #                                    input_shape=tf.constant([input_size, input_size]))
+            boxes, pred_conf = tfl.detect(image_data)
         else:
             batch_data = tf.constant(image_data)
             pred_bbox = infer(batch_data)
@@ -234,14 +263,14 @@ def main(_argv):
             bbox = track.to_tlbr()
             class_name = track.get_class()
             
-        # draw bbox on screen
+            # draw bbox on screen
             color = colors[int(track.track_id) % len(colors)]
             color = [i * 255 for i in color]
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 1)
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*17, int(bbox[1])), color, -1)
             cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-10)),0, 0.5, (255,255,255), 1)
 
-        # if enable info flag then print details about each track
+            # if enable info flag then print details about each track
             if FLAGS.info:
                 print("Tracker ID: {}, Class: {},  BBox Coords (xmin, ymin, xmax, ymax): {}".format(str(track.track_id), class_name, (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))))
 
