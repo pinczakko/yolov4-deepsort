@@ -121,12 +121,6 @@ def main(_argv):
 
     # load tflite model if flag is set
     if FLAGS.framework == 'tflite':
-        #interpreter = tf.lite.Interpreter(model_path=FLAGS.weights)
-        #interpreter.allocate_tensors()
-        #input_details = interpreter.get_input_details()
-        #output_details = interpreter.get_output_details()
-        #print(input_details)
-        #print(output_details)
         tfl = tf_lite_ngine()
     # otherwise load standard tensorflow saved model
     else:
@@ -163,17 +157,6 @@ def main(_argv):
 
         # run detections on tflite if flag is set
         if FLAGS.framework == 'tflite':
-            #tfl.interpreter.set_tensor(tfl.input_details[0]['index'], image_data)
-            #tfl.interpreter.invoke()
-            #pred = [tfl.interpreter.get_tensor(tfl.output_details[i]['index']) 
-            #        for i in range(len(tfl.output_details))]
-            ## run detections using yolov3 if flag is set
-            #if FLAGS.model == 'yolov3' and FLAGS.tiny == True:
-            #    boxes, pred_conf = filter_boxes(pred[1], pred[0], score_threshold=0.25,
-            #                                    input_shape=tf.constant([input_size, input_size]))
-            #else:
-            #    boxes, pred_conf = filter_boxes(pred[0], pred[1], score_threshold=0.25,
-            #                                    input_shape=tf.constant([input_size, input_size]))
             boxes, pred_conf = tfl.detect(image_data)
         else:
             batch_data = tf.constant(image_data)
