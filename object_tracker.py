@@ -137,7 +137,8 @@ def get_allowed_obj_classes(classes, num_objects):
     #allowed_classes = list(class_names.values())
     allowed_classes = ['car', 'truck', 'motorbike', 'bus']
     
-    # loop through objects and use class index to get class name, allow only classes in allowed_classes list
+    # loop through objects and use class index to get class name, 
+    # allow only classes in allowed_classes list
     names = []
     deleted_indx = []
     for i in range(num_objects):
@@ -147,6 +148,7 @@ def get_allowed_obj_classes(classes, num_objects):
             deleted_indx.append(i)
         else:
             names.append(class_name)
+    names = np.array(names)
     return names, deleted_indx
 
 def process_detections(tracker, detections, nms_max_overlap, frame):
@@ -199,6 +201,22 @@ def get_video_stream(video_path):
         vid = cv2.VideoCapture(video_path)
     return vid
 
+def show_tracked_object_count(names, frame):
+    count = len(names)
+    cv2.putText(frame, "Objects being tracked: {}".format(count), 
+                (5, 35), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 0, 155), 2)
+    print("Objects being tracked: {}".format(count))
+
+def detections_to_np_array(detections, boxes, scores, classes):
+    num_objects = detections.numpy()[0]
+    bboxes = boxes.numpy()[0]
+    bboxes = bboxes[0:int(num_objects)]
+    scores = scores.numpy()[0]
+    scores = scores[0:int(num_objects)]
+    classes = classes.numpy()[0]
+    classes = classes[0:int(num_objects)]
+    return num_objects, bboxes, scores, classes
+
 
 def main(_argv):
     # Definition of the parameters
@@ -219,10 +237,6 @@ def main(_argv):
         infer = saved_model_loaded.signatures['serving_default']
 
     # begin video capture
-    #try:
-    #    vid = cv2.VideoCapture(int(video_path))
-    #except:
-    #    vid = cv2.VideoCapture(video_path)
     vid = get_video_stream(video_path)
 
     # get video ready to save locally if flag is set
@@ -257,41 +271,32 @@ def main(_argv):
         boxes, scores, classes, valid_detections = apply_tf_nms(boxes, pred_conf) 
 
         # convert data to numpy arrays and slice out unused elements
-        num_objects = valid_detections.numpy()[0]
-        bboxes = boxes.numpy()[0]
-        bboxes = bboxes[0:int(num_objects)]
-        scores = scores.numpy()[0]
-        scores = scores[0:int(num_objects)]
-        classes = classes.numpy()[0]
-        classes = classes[0:int(num_objects)]
+        num_objects, bboxes, scores, classes = detections_to_np_array(valid_detections, 
+                                                                    boxes, scores, classes)
 
         # format bounding boxes from normalized ymin, xmin, ymax, xmax ---> xmin, ymin, width, height
         original_h, original_w, _ = frame.shape
         bboxes = utils.format_boxes(bboxes, original_h, original_w)
 
-        # store all predictions in one parameter for simplicity when calling functions
-        pred_bbox = [bboxes, scores, classes, num_objects]
-
+        # fetch allowed object classes, ignore the rest classes
         names, deleted_indx = get_allowed_obj_classes(classes, num_objects)
-        names = np.array(names)
-        count = len(names)
         if FLAGS.count:
-            cv2.putText(frame, "Objects being tracked: {}".format(count), (5, 35), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 255, 0), 2)
-            print("Objects being tracked: {}".format(count))
+            show_tracked_object_count(names, frame)
+
         # delete detections that are not in allowed_classes
         bboxes = np.delete(bboxes, deleted_indx, axis=0)
         scores = np.delete(scores, deleted_indx, axis=0)
 
         # encode yolo detections and feed to tracker
         features = encoder(frame, bboxes)
-        detections = [Detection(bbox, score, class_name, feature) for bbox, score, class_name, feature in zip(bboxes, scores, names, features)]
+        detections = [Detection(bbox, score, class_name, feature) 
+                    for bbox, score, class_name, feature in zip(bboxes, scores, names, features)]
 
         # process detections with YOLO tracker
         frame = process_detections(tracker, detections, nms_max_overlap, frame)
 
         # calculate and print frames per second of running detections
         print_fps(start_time_ns, time.time_ns())
-        #result = np.asarray(frame)
         result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         
         if not FLAGS.dont_show:
