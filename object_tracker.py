@@ -123,6 +123,31 @@ def apply_tf_nms(boxes, pred_conf):
             score_threshold=FLAGS.score
         )
 
+def init_image_data(frame, input_size):
+    image_data = cv2.resize(frame, (input_size, input_size))
+    image_data = image_data / 255.
+    image_data = image_data[np.newaxis, ...].astype(np.float32)
+    return image_data
+
+def get_allowed_obj_classes(classes, num_objects):
+    # read in all class names from config
+    class_names = utils.read_class_names(cfg.YOLO.CLASSES)
+
+    # by default allow all classes in .names file
+    #allowed_classes = list(class_names.values())
+    allowed_classes = ['car', 'truck', 'motorbike', 'bus']
+    
+    # loop through objects and use class index to get class name, allow only classes in allowed_classes list
+    names = []
+    deleted_indx = []
+    for i in range(num_objects):
+        class_indx = int(classes[i])
+        class_name = class_names[class_indx]
+        if class_name not in allowed_classes:
+            deleted_indx.append(i)
+        else:
+            names.append(class_name)
+    return names, deleted_indx
 
 def main(_argv):
     # Definition of the parameters
@@ -165,9 +190,7 @@ def main(_argv):
             break
     
         frame_size = frame.shape[:2]
-        image_data = cv2.resize(frame, (input_size, input_size))
-        image_data = image_data / 255.
-        image_data = image_data[np.newaxis, ...].astype(np.float32)
+        image_data = init_image_data(frame, input_size)
         start_time_ns = time.time_ns()
 
         # run detections on tflite if flag is set
@@ -198,26 +221,7 @@ def main(_argv):
         # store all predictions in one parameter for simplicity when calling functions
         pred_bbox = [bboxes, scores, classes, num_objects]
 
-        # read in all class names from config
-        class_names = utils.read_class_names(cfg.YOLO.CLASSES)
-
-        # by default allow all classes in .names file
-        #allowed_classes = list(class_names.values())
-        allowed_classes = ['car', 'truck', 'motorbike', 'bus']
-        
-        # custom allowed classes (uncomment line below to customize tracker for only people)
-        #allowed_classes = ['person']
-
-        # loop through objects and use class index to get class name, allow only classes in allowed_classes list
-        names = []
-        deleted_indx = []
-        for i in range(num_objects):
-            class_indx = int(classes[i])
-            class_name = class_names[class_indx]
-            if class_name not in allowed_classes:
-                deleted_indx.append(i)
-            else:
-                names.append(class_name)
+        names, deleted_indx = get_allowed_obj_classes(classes, num_objects)
         names = np.array(names)
         count = len(names)
         if FLAGS.count:
