@@ -69,7 +69,6 @@ class tf_lite_ngine:
         return boxes, pred_conf
 
 
-
 def init_deepsort_params():
     # Definition of the parameters
     max_cosine_distance = 0.4
@@ -108,6 +107,22 @@ def print_fps(start_time_ns, end_time_ns):
         elapsed_ns = 1
     fps = 1.0 * (10**9) / elapsed_ns
     print("FPS: %.2f" % fps)
+
+
+def apply_tf_nms(boxes, pred_conf):
+    """
+    Apply Tensorflow 2 non max suppression to input bounding boxes 
+    """
+    return tf.image.combined_non_max_suppression(
+            boxes=tf.reshape(boxes, (tf.shape(boxes)[0], -1, 1, 4)),
+            scores=tf.reshape(
+                pred_conf, (tf.shape(pred_conf)[0], -1, tf.shape(pred_conf)[-1])),
+            max_output_size_per_class=50,
+            max_total_size=50,
+            iou_threshold=FLAGS.iou,
+            score_threshold=FLAGS.score
+        )
+
 
 def main(_argv):
     # Definition of the parameters
@@ -165,15 +180,7 @@ def main(_argv):
                 boxes = value[:, :, 0:4]
                 pred_conf = value[:, :, 4:]
 
-        boxes, scores, classes, valid_detections = tf.image.combined_non_max_suppression(
-            boxes=tf.reshape(boxes, (tf.shape(boxes)[0], -1, 1, 4)),
-            scores=tf.reshape(
-                pred_conf, (tf.shape(pred_conf)[0], -1, tf.shape(pred_conf)[-1])),
-            max_output_size_per_class=50,
-            max_total_size=50,
-            iou_threshold=FLAGS.iou,
-            score_threshold=FLAGS.score
-        )
+        boxes, scores, classes, valid_detections = apply_tf_nms(boxes, pred_conf) 
 
         # convert data to numpy arrays and slice out unused elements
         num_objects = valid_detections.numpy()[0]
