@@ -149,6 +149,57 @@ def get_allowed_obj_classes(classes, num_objects):
             names.append(class_name)
     return names, deleted_indx
 
+def process_detections(tracker, detections, nms_max_overlap, frame):
+    """
+    Process objects detected by YOLO with deepsort
+    Returns processed frame
+    """
+    #initialize color map
+    cmap = plt.get_cmap('tab20b')
+    colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]
+
+    # run non-maxima supression
+    boxs = np.array([d.tlwh for d in detections])
+    scores = np.array([d.confidence for d in detections])
+    classes = np.array([d.class_name for d in detections])
+    indices = preprocessing.non_max_suppression(boxs, classes, nms_max_overlap, scores)
+    detections = [detections[i] for i in indices]       
+
+    # Call the tracker
+    tracker.predict()
+    tracker.update(detections)
+
+    # update tracks
+    for track in tracker.tracks:
+        if not track.is_confirmed() or track.time_since_update > 1:
+            continue 
+        bbox = track.to_tlbr()
+        class_name = track.get_class()
+        
+        # draw bbox on screen
+        color = colors[int(track.track_id) % len(colors)]
+        color = [i * 255 for i in color]
+        cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 1)
+        cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), 
+                (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*17, int(bbox[1])), color, -1)
+        cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), 
+                int(bbox[1]-10)),0, 0.5, (255,255,255), 1)
+
+        # if enable info flag then print details about each track
+        if FLAGS.info:
+            print("Tracker ID: {}, Class: {},  BBox Coords (xmin, ymin, xmax, ymax): {}".format(str(track.track_id), 
+                class_name, (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))))
+    return frame
+
+
+def get_video_stream(video_path):
+    try:
+        vid = cv2.VideoCapture(int(video_path))
+    except:
+        vid = cv2.VideoCapture(video_path)
+    return vid
+
+
 def main(_argv):
     # Definition of the parameters
     nms_max_overlap = 1.0
@@ -168,14 +219,14 @@ def main(_argv):
         infer = saved_model_loaded.signatures['serving_default']
 
     # begin video capture
-    try:
-        vid = cv2.VideoCapture(int(video_path))
-    except:
-        vid = cv2.VideoCapture(video_path)
-
-    out = None
+    #try:
+    #    vid = cv2.VideoCapture(int(video_path))
+    #except:
+    #    vid = cv2.VideoCapture(video_path)
+    vid = get_video_stream(video_path)
 
     # get video ready to save locally if flag is set
+    out = None
     if FLAGS.output:
         out = init_video_out(vid)
 
@@ -235,42 +286,12 @@ def main(_argv):
         features = encoder(frame, bboxes)
         detections = [Detection(bbox, score, class_name, feature) for bbox, score, class_name, feature in zip(bboxes, scores, names, features)]
 
-        #initialize color map
-        cmap = plt.get_cmap('tab20b')
-        colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]
-
-        # run non-maxima supression
-        boxs = np.array([d.tlwh for d in detections])
-        scores = np.array([d.confidence for d in detections])
-        classes = np.array([d.class_name for d in detections])
-        indices = preprocessing.non_max_suppression(boxs, classes, nms_max_overlap, scores)
-        detections = [detections[i] for i in indices]       
-
-        # Call the tracker
-        tracker.predict()
-        tracker.update(detections)
-
-        # update tracks
-        for track in tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
-                continue 
-            bbox = track.to_tlbr()
-            class_name = track.get_class()
-            
-            # draw bbox on screen
-            color = colors[int(track.track_id) % len(colors)]
-            color = [i * 255 for i in color]
-            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 1)
-            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*17, int(bbox[1])), color, -1)
-            cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-10)),0, 0.5, (255,255,255), 1)
-
-            # if enable info flag then print details about each track
-            if FLAGS.info:
-                print("Tracker ID: {}, Class: {},  BBox Coords (xmin, ymin, xmax, ymax): {}".format(str(track.track_id), class_name, (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))))
+        # process detections with YOLO tracker
+        frame = process_detections(tracker, detections, nms_max_overlap, frame)
 
         # calculate and print frames per second of running detections
         print_fps(start_time_ns, time.time_ns())
-        result = np.asarray(frame)
+        #result = np.asarray(frame)
         result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         
         if not FLAGS.dont_show:
